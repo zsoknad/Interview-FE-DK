@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import axios from 'axios';
 import { FormControl, InputLabel, MenuItem, Select, Button, TextField } from "@mui/material";
-import { Form, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { BarChart } from '@mui/x-charts/BarChart';
 import Box from '@mui/material/Box';
@@ -143,7 +143,6 @@ function Home() {
     });
 
     const {
-        register,
         handleSubmit,
         control,
         setValue,
