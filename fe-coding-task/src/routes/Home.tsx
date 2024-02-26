@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from "react"
+import axios from 'axios';
+import { FormControl, InputLabel, MenuItem, Select, Button } from "@mui/material";
 import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { BarChart } from '@mui/x-charts/BarChart';
+import Box from '@mui/material/Box';
 import Slider from '@mui/material/Slider';
-import axios from 'axios';
+import Grid from '@mui/material/Grid';
+
+import { createQuery } from "./functions";
 
 const MIN_YEAR = 2009;
 const MAX_YEAR = new Date().getFullYear()-1; // TODO: Looks like API returns error when quarter is in future, restrict selection to only previous quarters
 const API_BASE_URL = "https://data.ssb.no/api/v0/no/table/07241";
 
-type FormData = {
+type TFormData = {
     houseType: string[],
     quarters: number[],
 };
@@ -20,23 +25,47 @@ type TDataset = {
     id: string
 };
 
-type BarChartData = {
+type TBarChartData = {
     xAxis: string[];
     series: TDataset[];
 };
 
+const options = [
+    {
+      label: "Boliger i alt",
+      value: "00",
+    },
+    {
+      label: "Småhus",
+      value: "02",
+    },
+    {
+      label: "Blokkleiligheter",
+      value: "03"
+    }
+  ];
+
 function Home() {
+    const generateSingleOptions = () => {
+        return options.map((option: any) => {
+          return (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          );
+        });
+      };
 
     const [queryParameters, setQueryParameters] = useSearchParams();
 
     // Statistics data returned from API to populate bar chart
-    const [chartData, setChartData] = useState<BarChartData>({
+    const [chartData, setChartData] = useState<TBarChartData>({
         xAxis: [],
         series: []
     });
 
-    const onSubmit = async (data: FormData) => {
-        if (data.quarters && data.houseType) {
+    const onSubmit = async (data: TFormData) => {
+        if (data.quarters && data.houseType?.length) {
             localStorage.setItem("formData", JSON.stringify(data)); // save form data to local storage
             setQueryParameters({ houseType: JSON.stringify(data.houseType), quarters: `${data.quarters[0]},${data.quarters[1]}` }); // TODO: find a better way to do this
             try {
@@ -88,7 +117,7 @@ function Home() {
 
     const saved = localStorage.getItem("formData") ?? '[]';
     const parsed = JSON.parse(saved);
-    const [initialValues] = useState<FormData>({
+    const [initialValues] = useState<TFormData>({
         houseType: parsed.houseType ?? [],
         quarters: JSON.parse(saved).quarters ?? [MIN_QUARTER,MAX_QUARTER],
     });
@@ -99,7 +128,7 @@ function Home() {
         control,
         setValue,
         formState: { errors },
-    } = useForm<FormData>({
+    } = useForm<TFormData>({
         defaultValues: initialValues
     });
 
@@ -109,7 +138,7 @@ function Home() {
                 setValue('quarters', queryParameters.get("quarters")?.split(',').map(Number) ?? initialValues.quarters);
         };
         if (queryParameters.get("houseType")){
-            setValue('houseType', JSON.parse(queryParameters.get("houseType") ?? '') ?? initialValues.houseType);
+            setValue('houseType', JSON.parse(queryParameters.get("houseType") ?? '[]') ?? initialValues.houseType);
         }
       }, [queryParameters]);
 
@@ -123,85 +152,95 @@ function Home() {
         return String(quarter).slice(0,4) + 'K' + String(quarter).slice(4);
     }
 
-    const createQuery = (quarters: String[], houseType: String[] ) => {
-        const payload = {
-            "query": [
-                {
-                    "code": "Boligtype",
-                    "selection": {
-                        "filter": "item",
-                        "values": houseType
-                    }
-                },
-                {
-                    "code": "ContentsCode",
-                    "selection": {
-                    "filter": "item",
-                        "values": [
-                            "KvPris"
-                        ]
-                    }
-                },
-                {
-                    "code": "Tid",
-                    "selection": {
-                        "filter": "item",
-                        "values": quarters
-                    }
-                }
-            ],
-            "response": {
-                "format": "json-stat2"
-            }
-        };
-        return payload;
-    };
-
-
     return (
-        <div>
+        <Box sx={{ pt:"10px", pb:"10px", width:"85%",  margin:"auto"}}>
+            <h3>Select Quarters and House Type to View Average Price per Square Meter in Norway</h3>
             <form onSubmit={handleSubmit(onSubmit)}>
-                <label>Quarter Range:</label>
-                <Controller
-                    name="quarters"
-                    control={control}
-                    render={({field}) => (
-                        <Slider
-                            {...field}
-                            getAriaLabel={() => 'Quarter Range:'}
-                            min={MIN_QUARTER}
-                            max={MAX_QUARTER}
-                            marks={generateQuarterRange()}
-                            step={null}
-                            valueLabelDisplay="on"
-                            getAriaValueText={quarterValue}
-                            valueLabelFormat={quarterValue}
+                <Grid 
+                    container 
+                    direction="row"
+                    justifyContent="center"
+                    alignItems="center"
+                    spacing={4}
+                >
+                    <Grid item xs={8}>
+                        <InputLabel id="quarter-range-label">Quarter Range:</InputLabel>
+                        <Controller
+                            name="quarters"
+                            control={control}
+                            render={({field}) => (
+                                <Slider
+                                    {...field}
+                                    getAriaLabel={() => 'Quarter Range:'}
+                                    min={MIN_QUARTER}
+                                    max={MAX_QUARTER}
+                                    marks={generateQuarterRange()}
+                                    step={null}
+                                    valueLabelDisplay="auto"
+                                    getAriaValueText={quarterValue}
+                                    valueLabelFormat={quarterValue}
+                                />
+                            )}
                         />
-                    )}
-                />
-                <label>House Type:{errors.houseType && <div>This is required.</div>}</label>
-                <select 
-                    multiple
-                    {...register("houseType", { required: true })}
-                    placeholder="Select a house type">
-                    <option value="00">Boliger i alt</option>
-                    <option value="02"> Småhus</option>
-                    <option value="03"> Blokkleiligheter</option>
-                </select>
-                <input type="submit" />
+                    </Grid>
+                    <Grid item xs={6}>
+                        <FormControl required error={!!errors.houseType} fullWidth>
+                        <InputLabel id="select-house-type-label">House Type:</InputLabel>
+                        <Controller
+                            name="houseType"
+                            control={control}
+                            rules={{
+                                required: true,
+                              }}
+                            render={({field}) => (
+                                <Select
+                                    required
+                                    labelId="select-house-type-label"
+                                    id="select-house-type"
+                                    placeholder="House Type:"
+                                    label="House Type:"
+                                    {...field}
+                                    fullWidth
+                                    multiple>
+                                    {generateSingleOptions()}
+                                </Select>
+                            )}
+                        />
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={2}>
+                        <Button
+                                    type="submit"
+                                    variant="contained"
+                                    fullWidth
+                                >
+                                    Submit
+                        </Button>
+                    </Grid>
+                </Grid>
+
             </form>
+            {chartData.xAxis.length > 0 && <h3>Average Price Per Square Meter</h3>}
+            <Grid 
+                    container 
+                    direction="row"
+                    justifyContent="center"
+                    alignItems="center"
+                    spacing={4}
+                >
             {chartData.xAxis.length > 0 &&
             <div>
-                <h1>Average Price Per Square Meter</h1>
                 <BarChart
                     xAxis={[{ scaleType: 'band', data: chartData.xAxis }]}
                     series={chartData.series}
-                    width={500}
-                    height={300}
+                    width={600}
+                    height={400}
+                    
                 />
             </div>
             }
-        </div>
+            </Grid>
+        </Box>
     );
 };
 
