@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import axios from 'axios';
-import { FormControl, InputLabel, MenuItem, Select, Button } from "@mui/material";
-import { useSearchParams } from "react-router-dom";
+import { FormControl, InputLabel, MenuItem, Select, Button, TextField } from "@mui/material";
+import { Form, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { BarChart } from '@mui/x-charts/BarChart';
 import Box from '@mui/material/Box';
@@ -29,6 +29,11 @@ type TBarChartData = {
     xAxis: string[];
     series: TDataset[];
 };
+
+type TSavedStatistics = {
+    comment: String,
+    data: TBarChartData
+}
 
 const options = [
     {
@@ -64,6 +69,9 @@ function Home() {
         series: []
     });
 
+    const [comment, setComment] = useState<string>("");
+    const onTextChange = (e: any) => setComment(e.target.value);
+
     const onSubmit = async (data: TFormData) => {
         if (data.quarters && data.houseType?.length) {
             localStorage.setItem("formData", JSON.stringify(data)); // save form data to local storage
@@ -76,6 +84,7 @@ function Home() {
                         xAxis: quarters,
                         series: formatResponseData(quarters, Object.values(response.data.dimension.Boligtype.category.label), response.data.value)
                     });
+                    setComment("");
                 });
             } catch (error) {
                 console.error('Error submitting form data:', error);
@@ -83,6 +92,17 @@ function Home() {
         };
     };
 
+    // Simple mechanism to save a comment along with data if Bar Chart is populated
+    const onSaveStatisticsSubmit = () => {
+        const savedStatistics: TSavedStatistics = {
+            comment: comment,
+            data: chartData
+        }
+        setComment("");
+        localStorage.setItem("savedStatistics", JSON.stringify(savedStatistics));
+    };
+
+    // Convert values returned from API into dataset to be consumed by Bar Chart
     const formatResponseData = (quarters: String[], houseLabels: string[], values: number[]) => {
         const numQuarters = quarters.length
         const chartValues: TDataset[] = [];
@@ -154,7 +174,7 @@ function Home() {
 
     return (
         <Box sx={{ pt:"10px", pb:"10px", width:"85%",  margin:"auto"}}>
-            <h3>Select Quarters and House Type to View Average Price per Square Meter in Norway</h3>
+            <h3>Select Quarters and House Type to View Average Price Per Square Meter in Norway</h3>
             <form onSubmit={handleSubmit(onSubmit)}>
                 <Grid 
                     container 
@@ -163,7 +183,7 @@ function Home() {
                     alignItems="center"
                     spacing={4}
                 >
-                    <Grid item xs={8}>
+                    <Grid item xs={10}>
                         <InputLabel id="quarter-range-label">Quarter Range:</InputLabel>
                         <Controller
                             name="quarters"
@@ -208,38 +228,59 @@ function Home() {
                         />
                         </FormControl>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid item xs={4}>
                         <Button
-                                    type="submit"
-                                    variant="contained"
-                                    fullWidth
-                                >
-                                    Submit
+                            type="submit"
+                            variant="contained"
+                            fullWidth
+                            >
+                            Submit
                         </Button>
                     </Grid>
                 </Grid>
-
             </form>
-            {chartData.xAxis.length > 0 && <h3>Average Price Per Square Meter</h3>}
-            <Grid 
+            {chartData.xAxis.length > 0 && <>
+                <h3>Average Price Per Square Meter</h3>
+                <Grid 
                     container 
                     direction="row"
                     justifyContent="center"
                     alignItems="center"
                     spacing={4}
-                >
-            {chartData.xAxis.length > 0 &&
-            <div>
-                <BarChart
-                    xAxis={[{ scaleType: 'band', data: chartData.xAxis }]}
-                    series={chartData.series}
-                    width={600}
-                    height={400}
-                    
-                />
-            </div>
+                    >
+                    <Grid item height={400} xs={6}>
+                        <BarChart
+                            xAxis={[{ scaleType: 'band', data: chartData.xAxis }]}
+                            series={chartData.series}                            
+                        />
+                    </Grid>
+                    <Grid item xs={4}>
+                        <Grid container spacing={4}>
+                            <Grid item xs={12}>
+                                <TextField 
+                                    fullWidth
+                                    multiline
+                                    helperText="Enter a comment for this result"
+                                    onChange={onTextChange}
+                                    value={comment}
+                                    >
+                                    Enter a comment
+                                </TextField>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Button 
+                                    fullWidth
+                                    onClick={onSaveStatisticsSubmit}
+                                    variant="contained"
+                                    >
+                                    Save Statistics
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </>
             }
-            </Grid>
         </Box>
     );
 };
