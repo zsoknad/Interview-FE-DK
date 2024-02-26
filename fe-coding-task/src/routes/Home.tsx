@@ -1,11 +1,12 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { BarChart } from '@mui/x-charts/BarChart';
 import Slider from '@mui/material/Slider';
 import axios from 'axios';
 
 const MIN_YEAR = 2009;
-const MAX_YEAR = new Date().getFullYear(); // TODO: Looks like API returns error when quarter is in future, restrict selection to only previous quarters
+const MAX_YEAR = new Date().getFullYear()-1; // TODO: Looks like API returns error when quarter is in future, restrict selection to only previous quarters
 const API_BASE_URL = "https://data.ssb.no/api/v0/no/table/07241";
 
 type FormData = {
@@ -26,6 +27,8 @@ type BarChartData = {
 
 function Home() {
 
+    const [queryParameters, setQueryParameters] = useSearchParams();
+
     // Statistics data returned from API to populate bar chart
     const [chartData, setChartData] = useState<BarChartData>({
         xAxis: [],
@@ -34,6 +37,8 @@ function Home() {
 
     const onSubmit = async (data: FormData) => {
         if (data.quarters && data.houseType) {
+            localStorage.setItem("formData", JSON.stringify(data)); // save form data to local storage
+            setQueryParameters({ houseType: JSON.stringify(data.houseType), quarters: `${data.quarters[0]},${data.quarters[1]}` }); // TODO: find a better way to do this
             try {
                 const quarters = filterQuarters(data.quarters[0],data.quarters[1]);
                 axios.post(`${API_BASE_URL}`, createQuery(quarters, data.houseType))
@@ -81,17 +86,32 @@ function Home() {
     const MIN_QUARTER = QUARTERS[0].value;
     const MAX_QUARTER = QUARTERS[QUARTERS.length-1].value;
 
+    const saved = localStorage.getItem("formData") ?? '[]';
+    const parsed = JSON.parse(saved);
+    const [initialValues] = useState<FormData>({
+        houseType: parsed.houseType ?? [],
+        quarters: JSON.parse(saved).quarters ?? [MIN_QUARTER,MAX_QUARTER],
+    });
+
     const {
         register,
         handleSubmit,
         control,
+        setValue,
         formState: { errors },
     } = useForm<FormData>({
-        defaultValues: {
-            houseType: [],
-            quarters: [MIN_QUARTER,MAX_QUARTER]
-        }
+        defaultValues: initialValues
     });
+
+    useEffect(() => {
+        // TODO: perform error checking on url params, check if they are in possible range selections
+        if (queryParameters.get("quarters")){
+                setValue('quarters', queryParameters.get("quarters")?.split(',').map(Number) ?? initialValues.quarters);
+        };
+        if (queryParameters.get("houseType")){
+            setValue('houseType', JSON.parse(queryParameters.get("houseType") ?? '') ?? initialValues.houseType);
+        }
+      }, [queryParameters]);
 
     // Given a start and end quarter (from range selection) return an array of all quarters from start to end (inclusive)
     const filterQuarters = (quarterStart: number, quarterEnd: number) => {
@@ -170,8 +190,9 @@ function Home() {
                 </select>
                 <input type="submit" />
             </form>
+            {chartData.xAxis.length > 0 &&
             <div>
-                <h1>Insert Material UI Bar Chart Here</h1>
+                <h1>Average Price Per Square Meter</h1>
                 <BarChart
                     xAxis={[{ scaleType: 'band', data: chartData.xAxis }]}
                     series={chartData.series}
@@ -179,6 +200,7 @@ function Home() {
                     height={300}
                 />
             </div>
+            }
         </div>
     );
 };
