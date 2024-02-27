@@ -1,3 +1,4 @@
+// @DK: error handling in case of failed callback function would be a good idea
 app.post('/api/extract', upload.single('file'), async (req, res) => {
     logInfo('POST /api/extract',req.body);
     logInfo('FILE=',req.file);
@@ -10,21 +11,21 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
         const user = await User.findOne(idUser);
 
         if (requestID && project && idUser && user) {
-            logDebug('User with role '+user.role, user);
+            logDebug('User with role '+user.role, user); // @DK: will throw error if role does not exist on user, do we need to check if it exists?
             if (user.role === 'ADVISOR' || user.role.indexOf('ADVISOR') > -1)
-                return res.json({requestID, step: 999, status: 'DONE', message: 'Nothing to do for ADVISOR role'});
+                return res.json({requestID, step: 999, status: 'DONE', message: 'Nothing to do for ADVISOR role'}); // @DK: be consistant with status codes (numbers or strings?)
 
             /* reset status variables */
             await db.updateStatus(requestID, 1, '');
 
             logDebug('CONFIG:', config.projects);
             if (project === 'inkasso' && config.projects.hasOwnProperty(project) && file) {
-                const hashSum = crypto.createHash('sha256');
+                const hashSum = crypto.createHash('sha256'); // @DK: variable declared here but never used
                 const fileHash = idUser;
                 const fileName = 'fullmakt';
                 const fileType = mime.getExtension(file.mimetype);
                 if (fileType !== 'pdf')
-                    return res.status(500).json({requestID, message: 'Missing pdf file'});
+                    return res.status(500).json({requestID, message: 'Missing pdf file'}); // @DK: is requestID an object here (and all other similar .json calls)? if not will have to define as key/value pair
                 await db.updateStatus(requestID, 3, '');
 
                 const folder = `${project}-signed/${idUser}`;
@@ -36,7 +37,7 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
 
                 await db.updateStatus(requestID, 5, '');
 
-                let sent = true;
+                let sent = true; // @DK: variable declared here but never used
                 const debtCollectors = await db.getDebtCollectors();
                 logDebug('debtCollectors=', debtCollectors);
                 if (!debtCollectors)
@@ -68,6 +69,7 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
                         const sendConfig = {
                             sender: config.projects[project].email.sender,
                             replyTo: config.projects[project].email.replyTo,
+                            // @DK: subject value string not properly closed, 
                             subject: 'Email subject,
                             templateId: config.projects[project].email.template.collector,
                             params: {
@@ -104,9 +106,10 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
                 }
                 await db.updateStatus(requestID, 100, '');
 
-                logDebug('FINAL SENT STATUS:');
+                logDebug('FINAL SENT STATUS:'); // @DK: missing second argument here?
                 console.dir(sentStatus, {depth: null});
 
+                // @DK: Remove unused code
                 //if (!allSent)
                 //return res.status(500).json({requestID, message: 'Failed sending email'});
 
@@ -115,7 +118,7 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
                 /* prepare summary email */
                 const summaryConfig = {
                     //bcc: [{ email: 'tomas@inkassoregisteret.com', name: 'Tomas' }],
-                    sender: config.projects[project].email.sender,
+                    sender: config.projects[project].email.sender, 
                     replyTo: config.projects[project].email.replyTo,
                     subject: 'Oppsummering Kravsforespørsel',
                     templateId: config.projects[project].email.template.summary,
@@ -127,6 +130,7 @@ app.post('/api/extract', upload.single('file'), async (req, res) => {
                 };
                 logDebug('Summary config:', summaryConfig);
 
+                // @DK: Remove unused code
                 /* send email */
                 //const respSummary = await email.send(sendConfig, config.projects[project].email.apiKey);
                 //logDebug('extract() summary resp=', respSummary);
